@@ -8,13 +8,18 @@ from datetime import datetime
 input_file = "flights.csv"
 error_log_file = "error_log.txt"
 
+#checking to see if the date is valid or not
 def is_valid_date(year, month, day):
     try:
         datetime(int(year), int(month), int(day))
         return True
     except:
         return False
+    
 
+#Checks is something can be turned into a number, 
+#delays must be numbers to calculate averages
+#prevents crashes when data has text like NA
 def is_number(value):
     if value == "":
         return True
@@ -23,15 +28,21 @@ def is_number(value):
         return True
     except:
         return False
+    
 
+#creates a list to store valid rows
+#only good data survives
 clean_data = []
 
+
 # Open error log file ONCE (write mode)
+#All error go into one organizaed file
 with open(error_log_file, "w") as error_log:
 
     with open(input_file, "r") as file:
         reader = csv.reader(file)
 
+#loops through every row, checks flight one by one
         for line_num, row in enumerate(reader, start=1):
 
             # Skip headers
@@ -108,6 +119,10 @@ airport_stats = {
     "ATL": {"total": 0, "cancelled": 0, "on_time": 0, "late": 0, "arr_delays": []}
 }
 
+
+#processes only valid flights, count flights,
+#count cancellations, track delays, classify flights
+#15 mins "standard" for on-time vs late
 for f in clean_data:
     origin = f["origin"]
 
@@ -124,6 +139,7 @@ for f in clean_data:
                 airport_stats[origin]["on_time"] += 1
             else:
                 airport_stats[origin]["late"] += 1
+
 
 # Print results
 for airport in ["CLT", "ATL"]:
@@ -147,3 +163,36 @@ for airport in ["CLT", "ATL"]:
     print("Average Arrival Delay:", round(avg_delay, 2))
 
 print("\nError log written to error_log.txt")
+
+
+#DESTINATION REPORT
+#Counts how many flights go to each destination
+#Shows most populat destinations 
+destination_stats = {}
+
+for f in clean_data:
+    dest = f.get("dest")
+
+    if dest:
+        if dest not in destination_stats:
+            destination_stats[dest] = {"count": 0}
+
+        destination_stats[dest]["count"] += 1
+
+print("\nTop Destinations:")
+for dest, data in sorted(destination_stats.items(), key=lambda x: x[1]["count"], reverse=True)[:5]:
+    print(dest, "-", data["count"], "flights")
+
+#ON TIME REPORT
+print("\nOn-Time Flights Report:")
+
+for airport in ["CLT", "ATL"]:
+    stats = airport_stats[airport]
+    print(airport, "-", stats["on_time"], "on-time flights")
+
+#LATE FLIGHTS REPORT
+print("\nLate Flights Report:")
+
+for airport in ["CLT", "ATL"]:
+    stats = airport_stats[airport]
+    print(airport, "-", stats["late"], "late flights")
