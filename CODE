@@ -1,0 +1,149 @@
+# Team Project: Flight Data Analysis
+# This script reads flight data from "flights.csv", validates each record, and logs any errors to "error_log.txt".
+# After cleaning the data, it compares the performance of CLT and ATL airports based on cancellation rates, on-time rates, and average arrival delays.
+
+import csv
+from datetime import datetime
+
+input_file = "flights.csv"
+error_log_file = "error_log.txt"
+
+def is_valid_date(year, month, day):
+    try:
+        datetime(int(year), int(month), int(day))
+        return True
+    except:
+        return False
+
+def is_number(value):
+    if value == "":
+        return True
+    try:
+        float(value)
+        return True
+    except:
+        return False
+
+clean_data = []
+
+# Open error log file ONCE (write mode)
+with open(error_log_file, "w") as error_log:
+
+    with open(input_file, "r") as file:
+        reader = csv.reader(file)
+
+        for line_num, row in enumerate(reader, start=1):
+
+            # Skip headers
+            if row and row[0] == "YEAR":
+                continue
+
+            # Check field count
+            if len(row) != 9:
+                error_log.write(f"Line {line_num}: Incorrect number of fields\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            year, month, day, carrier, origin, dest, dep_delay, arr_delay, cancelled = row
+
+            # Validate month
+            if not (month.isdigit() and 1 <= int(month) <= 12):
+                error_log.write(f"Line {line_num}: Invalid month\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Validate full date
+            if not is_valid_date(year, month, day):
+                error_log.write(f"Line {line_num}: Invalid date\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Missing carrier
+            if carrier.strip() == "":
+                error_log.write(f"Line {line_num}: Missing carrier\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Missing destination
+            if dest.strip() == "":
+                error_log.write(f"Line {line_num}: Missing destination\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Validate delays
+            if not is_number(dep_delay):
+                error_log.write(f"Line {line_num}: Nonnumeric departure delay\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            if not is_number(arr_delay):
+                error_log.write(f"Line {line_num}: Nonnumeric arrival delay\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Validate cancelled field
+            if cancelled not in {"0", "1"}:
+                error_log.write(f"Line {line_num}: Invalid cancellation indicator\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Logical rule: cancelled flights shouldn't have delays
+            if cancelled == "1" and (dep_delay != "" or arr_delay != ""):
+                error_log.write(f"Line {line_num}: Cancelled flight has delay values\n")
+                error_log.write(f"Raw data: {','.join(row)}\n\n")
+                continue
+
+            # Passed validation → store
+            clean_data.append({
+                "origin": origin,
+                "arr_delay": float(arr_delay) if arr_delay != "" else None,
+                "cancelled": int(cancelled)
+            })
+
+
+# CLT vs ATL ANALYSIS
+
+airport_stats = {
+    "CLT": {"total": 0, "cancelled": 0, "on_time": 0, "late": 0, "arr_delays": []},
+    "ATL": {"total": 0, "cancelled": 0, "on_time": 0, "late": 0, "arr_delays": []}
+}
+
+for f in clean_data:
+    origin = f["origin"]
+
+    if origin in airport_stats:
+        airport_stats[origin]["total"] += 1
+
+        if f["cancelled"] == 1:
+            airport_stats[origin]["cancelled"] += 1
+
+        if f["arr_delay"] is not None:
+            airport_stats[origin]["arr_delays"].append(f["arr_delay"])
+
+            if f["arr_delay"] < 15:
+                airport_stats[origin]["on_time"] += 1
+            else:
+                airport_stats[origin]["late"] += 1
+
+# Print results
+for airport in ["CLT", "ATL"]:
+    stats = airport_stats[airport]
+
+    avg_delay = (
+        sum(stats["arr_delays"]) / len(stats["arr_delays"])
+        if stats["arr_delays"] else 0
+    )
+
+    cancel_rate = (stats["cancelled"] / stats["total"]) * 100 if stats["total"] else 0
+    on_time_rate = (
+        stats["on_time"] / (stats["on_time"] + stats["late"]) * 100
+        if (stats["on_time"] + stats["late"]) else 0
+    )
+
+    print(f"\nAirport: {airport}")
+    print("Total Flights:", stats["total"])
+    print("Cancellation Rate:", round(cancel_rate, 2), "%")
+    print("On-Time Rate:", round(on_time_rate, 2), "%")
+    print("Average Arrival Delay:", round(avg_delay, 2))
+
+print("\nError log written to error_log.txt")
